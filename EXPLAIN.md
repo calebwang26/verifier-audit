@@ -156,7 +156,7 @@ A mutant is the *correct* solution with one token changed. A model's wrong answe
 
 The test: for each of 164 HumanEval problems, compute (a) the share of mutants that slip past HumanEval's original tests & (b) the share of wrong model-written solutions that slip past them, using 196,800 released samples from six models, with HumanEval+ deciding what counts as wrong. If mutants were a good stand-in, problems with a high (a) should have a high (b).
 
-**They don't. Spearman rank correlation 0.07, 95% interval −0.10 to 0.24, over 162 problems.** That's indistinguishable from no relationship. Removing duplicate samples gives 0.06.
+**They don't. Spearman rank correlation 0.07, 95% interval −0.10 to 0.24, over 162 problems.** That's indistinguishable from no relationship. Removing duplicate samples gives 0.06. A second full run from a fresh clone gave 0.08, with 0.06% of sample verdicts differing because slow samples hit time limits differently under load.
 
 Where it goes wrong, concretely:
 
