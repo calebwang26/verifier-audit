@@ -2,15 +2,14 @@
 # Merge a pull request only if every CI check passed.
 # usage: scripts/merge_pr.sh <pr-number>
 #
-# The merge commit is made locally & pushed, NOT with GitHub's merge button.
-# A merge done on GitHub's side is stamped with the account's primary email
-# address unless "Keep my email addresses private" is switched on, which
-# would put a personal email into public history. A local merge uses the
-# no-reply address from `git config user.email`. GitHub still marks the pull
-# request as merged, because its commits arrive on main.
+# After merging it checks the email on the merge commit. A merge done on
+# GitHub's side is stamped with the account's primary email unless "Keep my
+# email addresses private" is on (GitHub -> Settings -> Emails). That setting
+# was off for this project's first eight merges, which put a personal email
+# into history & forced a rewrite (BUILDLOG.md, steps 9 & 10). If it ever
+# gets switched off again, this script says so at once instead of at the end.
 set -eu
 pr="$1"
-branch=$(gh pr view "$pr" --json headRefName -q .headRefName)
 
 # Checks take a few seconds to register after a push; wait for them to appear.
 tries=0
@@ -25,18 +24,14 @@ if ! gh pr checks "$pr" --watch --interval 10 --fail-fast; then
   gh pr checks "$pr" || true
   exit 1
 fi
-echo "all checks passed; merging PR $pr ($branch)"
+echo "all checks passed; merging PR $pr"
+gh pr merge "$pr" --merge --delete-branch
 
-# Merge in a throwaway worktree so the main working folder is left alone.
 git fetch -q origin
-work=$(mktemp -d)
-git worktree add -q --detach "$work" origin/main
-(
-  cd "$work"
-  git merge -q --no-ff "origin/$branch" -m "Merge pull request #$pr from calebwang26/$branch"
-  git push -q origin HEAD:main            # a normal push; never forced
-)
-git worktree remove --force "$work"
-git push -q origin --delete "$branch"
-git fetch -q origin
-echo "merged PR $pr; merge commit author: $(git log -1 --format='%ae' origin/main)"
+email=$(git log -1 --format='%ae' origin/main)
+case "$email" in
+  *@users.noreply.github.com) echo "merged PR $pr; merge commit email is the no-reply address" ;;
+  *) echo "PROBLEM: the merge commit on main carries '$email', not the no-reply address."
+     echo "Turn on 'Keep my email addresses private' in GitHub settings & fix this commit before publishing."
+     exit 2 ;;
+esac

@@ -283,3 +283,40 @@ The likely cause is time limits. The first run shared the machine with two other
 - Rewrote `scripts/merge_pr.sh`: it still waits for green CI, but now makes the merge commit locally & pushes it (a normal push, never forced). Pull request 9 was merged this way & its merge commit carries the no-reply address. GitHub still shows the pull request as merged.
 
 **What I did not do:** remove the email from the 8 existing commits. That means rewriting history & force-pushing `main`, which is on the list of things to stop & ask about. The repo is private, so nothing is exposed while it waits. It must be resolved before the repo goes public.
+
+## Step 10: removing the email from history & publishing through a fresh repo
+
+Caleb confirmed he had switched on GitHub's "Keep my email addresses private", approved the README, & approved a history rewrite with a backup first.
+
+**The rewrite:**
+
+1. **Backup:** `git bundle create verifier-audit-pre-rewrite.bundle --all` (every branch & commit in one file), then `git bundle verify`.
+2. **Rewrite:** `git filter-branch --env-filter` over `main`, changing the author email only where it was the personal address.
+3. **Checked before pushing:** the final file tree has the identical hash, every commit's message, author name & date is unchanged, & the only author email left is the no-reply one (48 of 48).
+4. **Push:** `git push --force-with-lease`, which refuses to overwrite anything on GitHub other than the exact commit I had backed up.
+
+**Why that wasn't enough to publish from the same repo:** a rewrite makes new commits. It doesn't delete the old ones from GitHub. They stay retrievable by id, & each merged pull request's page links straight to its old merge commit. Making that repo public would publish the email after all.
+
+**The fresh-repo route** (the same one used for the sibling project):
+
+1. The build repo was renamed `verifier-audit-dev` & stays **private** as the archive. The ten pull-request pages & their review history live there.
+2. A new, empty repo was created under the original name.
+3. Only the rewritten `main` was pushed to it. No other branches, no pull requests.
+4. Confirmed through GitHub's API that none of the eight old merge commits, nor the old tip, exists in the new repo, & that every commit there carries the no-reply address.
+5. CI passes there, & the pre-publish checklist was re-run against it.
+
+So "Merge pull request #N" in this repo's history refers to pull requests in the private archive. The commits themselves are all here.
+
+**The merge script goes back to GitHub's merge button, with a guard.** With the privacy setting on, GitHub's own merge commits carry the no-reply address, & branch protection (pull requests required) wouldn't allow the local-merge workaround anyway. `scripts/merge_pr.sh` now merges with `gh pr merge` after green CI & then checks the email on the new merge commit, failing loudly if it's ever a personal address. This pull request is the first merge to test that, done while the repo is still private.
+
+**Pre-publish checklist, final state:**
+
+| # | check | result |
+|---|---|---|
+| 1 | `gitleaks detect` over the entire history | pass: 0 findings |
+| 2 | only the no-reply email in the history | pass: 48 of 48 commits |
+| 3 | no confidential terms or personal info | pass |
+| 4 | no file over 50 MB, small repo | pass |
+| 5 | CI green on `main`, README runs from a fresh clone | pass (full `make all` from a clone in step 9; `make core` & the tests re-run from a clone of the new repo) |
+| 6 | Caleb reviews the README & approves | approved |
+| 7 | switch to public | done after this pull request merged, then `main` was protected |
