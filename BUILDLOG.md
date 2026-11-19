@@ -43,3 +43,21 @@ What was built in each step, the decisions made & why, & the problems hit along 
 
 - `.github/workflows/ci.yml` now grants the gitleaks job `contents: read` & `pull-requests: read`.
 - New `scripts/merge_pr.sh <number>`: waits for the checks & merges only if every one passed. Every later PR is merged through it, so a red check can't be skipped again.
+
+## Step 2: the other eleven tasks
+
+**Built:** `is_valid_parentheses`, `top_k_frequent`, `parse_duration`, `roman_to_int`, `lru_cache`, `binary_search`, `rle_encode`, `max_subarray_sum`, `longest_common_prefix`, `spiral_order` & `count_primes`. Twelve tasks in total, each with a reference solution, an oracle, an input generator, hand-picked edge inputs & three suites.
+
+**How the three suite strengths were defined** (the same rule for every task, decided before any mutant was run):
+
+- **weak:** one or two happy-path examples, the kind you'd find in a docstring.
+- **medium:** weak plus the handful of cases a typical repo's test file has (a "not found" case, a second example, one well-known gotcha).
+- **strong:** medium plus edge cases (empty input, single element, boundaries, duplicates) plus 200 random inputs compared with the oracle.
+
+**Decisions:**
+
+- **Every oracle uses a different method from the reference.** For example the reference `merge_intervals` sorts & sweeps once, while its oracle keeps merging any two overlapping intervals until nothing changes. If both were written the same way they'd share the same blind spots, & agreeing with each other would prove nothing.
+- **Random inputs are deliberately small** (lists of 0 to 10 items, numbers from a narrow range). Small inputs hit the awkward cases (empty, one item, duplicates, ties) far more often than big ones do.
+- **`lru_cache` is a class, not a function,** so its "input" is a capacity plus a list of operations & its "output" is the list of what each operation returned. Each task's `spec.apply()` hides that difference, so the rest of the audit treats every task the same way.
+
+**Checked:** all twelve references pass all five suites. Passing the oracle suite means each reference agrees with its independently written oracle on 500 random inputs.
