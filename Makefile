@@ -1,9 +1,9 @@
 PYTHON ?= python
 
-.PHONY: all core audit hacks test hooks
+.PHONY: all core audit hacks review test hooks
 
 # Everything that needs no download.
-core: audit hacks
+core: audit hacks review
 
 all: core test
 
@@ -13,6 +13,9 @@ audit:
 hacks:
 	$(PYTHON) hacks_eval.py
 	$(PYTHON) demos/verifier_attacks/demo.py
+
+review:
+	$(PYTHON) review/compare.py
 
 test:
 	$(PYTHON) -m pytest -q
