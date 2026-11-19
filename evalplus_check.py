@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import warnings
 import zipfile
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -107,7 +108,9 @@ def read_samples(zip_name: str) -> dict[str, list[str]]:
 
 def _parses(code: str) -> bool:
     try:
-        ast.parse(code)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")   # model samples are full of odd-looking literals
+            ast.parse(code)
         return True
     except (SyntaxError, ValueError, RecursionError, MemoryError):
         return False
@@ -274,8 +277,12 @@ def analyse(problems: dict, results: dict) -> dict:
     has_fp = [rates[t]["samples_fp"] > 0 for t in included]
     flagged = [p > 0 for p in pred]
     both = sum(f and h for f, h in zip(flagged, has_fp))
+    zero = [t for t in included if rates[t]["predicted_fpr"] == 0]
     separation = {
         "auc": auc(pred, has_fp),
+        "problems_predicted_zero": len(zero),
+        "predicted_zero_with_real_fp": sum(rates[t]["samples_fp"] > 0 for t in zero),
+        "real_fp_samples_in_predicted_zero": sum(rates[t]["samples_fp"] for t in zero),
         "problems_with_real_fp": sum(has_fp), "problems_flagged": sum(flagged),
         "flagged_and_real": both,
         "recall": both / sum(has_fp) if sum(has_fp) else None,          # real-FP problems the audit flagged
@@ -284,13 +291,17 @@ def analyse(problems: dict, results: dict) -> dict:
         "real_fp_samples_in_flagged": sum(rates[t]["samples_fp"] for t, f in zip(included, flagged) if f),
     }
 
-    # Where prediction & reality disagree most: biggest gap between the two ranks.
-    pred_rank, real_rank = stats.rankdata(pred), stats.rankdata(real)
-    gaps = sorted(zip(included, pred_rank - real_rank), key=lambda pair: -abs(pair[1]))
-    disagreements = [{"task_id": t, "entry_point": problems[t]["entry_point"], "rank_gap": float(g),
-                      **{k: rates[t][k] for k in ("predicted_fpr", "real_fpr", "mutants_wrong", "mutants_fp",
-                                                  "samples_wrong", "samples_fp")}}
-                     for t, g in gaps[:5]]
+    # Where prediction & reality disagree most, in both directions.
+    def describe(task_id: str) -> dict:
+        keys = ("predicted_fpr", "real_fpr", "mutants_wrong", "mutants_fp", "samples_wrong", "samples_fp")
+        return {"task_id": task_id, "entry_point": problems[task_id]["entry_point"],
+                "base_tests": len(problems[task_id]["base_input"]), **{k: rates[task_id][k] for k in keys}}
+
+    missed = sorted(included, key=lambda t: (rates[t]["predicted_fpr"], -rates[t]["real_fpr"]))
+    missed = sorted(missed[:sum(p == 0 for p in pred)], key=lambda t: -rates[t]["real_fpr"])[:5]
+    false_alarms = sorted(included, key=lambda t: rates[t]["predicted_fpr"] - rates[t]["real_fpr"], reverse=True)[:5]
+    disagreements = {"missed_by_audit": [describe(t) for t in missed],          # audit says 0, reality is high
+                     "false_alarms": [describe(t) for t in false_alarms]}        # audit says high, reality is low
 
     greedy = {}
     for model in VALIDATION_MODELS:
@@ -329,11 +340,13 @@ def print_summary(a: dict) -> None:
     print("greedy-sample sanity check (pass rate on original tests -> on HumanEval+):")
     for model, g in a["greedy_validation"].items():
         print(f"  {model:14s} {g['base_pass_rate']:.1%} -> {g['plus_pass_rate']:.1%}")
-    print("largest disagreements:")
-    for d in a["disagreements"]:
-        print(f"  {d['task_id']:14s} {d['entry_point']:24s} predicted {d['predicted_fpr']:.2f} "
-              f"({d['mutants_fp']}/{d['mutants_wrong']})  real {d['real_fpr']:.2f} "
-              f"({d['samples_fp']}/{d['samples_wrong']})")
+    for title, key in [("audit predicted none, reality is high:", "missed_by_audit"),
+                       ("audit predicted many, reality is low:", "false_alarms")]:
+        print(title)
+        for d in a["disagreements"][key]:
+            print(f"  {d['task_id']:14s} {d['entry_point']:24s} predicted {d['predicted_fpr']:.2f} "
+                  f"({d['mutants_fp']}/{d['mutants_wrong']})  real {d['real_fpr']:.2f} "
+                  f"({d['samples_fp']}/{d['samples_wrong']})")
 
 
 def main() -> None:
