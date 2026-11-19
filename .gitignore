@@ -1,0 +1,25 @@
+# Session handoff notes (private, never committed)
+HANDOFF.md
+
+# Secrets & local environments
+.env
+.env.*
+.venv/
+venv/
+
+# Python caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Generated data & third-party downloads (rebuilt by `make all`)
+data/
+outputs/
+*.zip
+*.jsonl
+*.jsonl.gz
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/

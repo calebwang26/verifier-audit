@@ -1,0 +1,11 @@
+# Secret-scanner config. Uses gitleaks' default rules & allowlists only
+# values that carry the marker FAKE (synthetic, obviously-not-real secrets).
+title = "verifier-audit gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic values carrying the FAKE marker"
+regexTarget = "match"
+regexes = ['''FAKE''']
