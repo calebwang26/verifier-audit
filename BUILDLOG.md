@@ -217,3 +217,29 @@ What was built in each step, the decisions made & why, & the problems hit along 
 - **The run took 32 minutes,** not the 5 I'd estimated. Wrong samples that loop cost a 1-second limit each, & the machine was shared with two other jobs. Results are cached per problem, so a re-run takes seconds.
 - **EvalPlus's own evaluator failed every check on this Mac** the first time (0% pass rate for GPT-4). It tries to cap memory with `setrlimit`, which macOS refuses. Setting `EVALPLUS_MAX_MEMORY_BYTES=-1`, its own off switch, fixed it. Had I not sanity-checked the cross-check with a known-correct solution, I'd have "found" 300 disagreements that didn't exist.
 - **The first disagreement list only showed one direction** (audit says weak, reality says fine) because of how ties rank. It now reports both directions separately.
+
+## Step 8: plots, the cross-check & the README
+
+**Built:** `report.py` (four plots & a table of key numbers), `tests/test_report.py`, the `figures/` PNGs & the README.
+
+**The mutants-vs-hacks cross-check:**
+
+| suite | mutants passed | hacks passed |
+|---|---|---|
+| empty | 100% | 100% |
+| weak | 33% | 100% |
+| medium | 16% | 77% |
+| strong | 0% | 23% |
+| oracle | 0.2% | 2% |
+
+Both columns rank the suites the same way, & hacks get through at least as often as mutants everywhere. The suite that's strong on mutants but weak on hacks is `strong`: nothing but the always-equal object (10 tasks) & one bracket-counting hack (1 task) gets past it.
+
+**Decisions:**
+
+- **Chart colours come from one validated palette.** One blue for single-series charts, a one-hue light-to-dark ramp for the heatmap, grey for background points. I ran a colour-blindness & contrast validator on the palette rather than judging it by eye. Text is always dark ink, never the series colour.
+- **Chart titles state the finding** ("Weak tests pass a third of real bugs") instead of naming the axes.
+- **Every chart was rendered & looked at before being committed.** That caught three problems: a title that claimed "every suite is easier to hack" when the empty suite is a tie, a title too long for the figure, & overlapping point labels on the EvalPlus scatter.
+- **Every number in the README was checked against the saved JSON** before committing, not copied from memory.
+- **The README leads its results with what the audit found on the 12 tasks & then states the negative EvalPlus result as the headline,** with the two concrete cases (`filter_integers`, `numerical_letter_grade`) that explain it.
+
+**Problems hit:** none beyond the chart fixes above.
