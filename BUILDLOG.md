@@ -172,3 +172,48 @@ What was built in each step, the decisions made & why, & the problems hit along 
 - `parse_duration` `and` -> `or`: still raises ValueError on every bad input, but with a different message.
 
 **What this taught me:** "equivalent" really means "equivalent on the inputs the generator produces". The audit can't see a bug that only shows on inputs outside that range. That's a limit of the method, not a slip in the code, & it's in the README's limitations.
+
+## Step 7: the EvalPlus realism check (the headline)
+
+**Built:** `evalplus_check.py` (download, clean, evaluate, analyse), `evalplus_worker.py` (runs untrusted candidates safely), `scripts/crosscheck_evalplus.py` & `tests/test_evalplus.py`.
+
+**Data used:** HumanEval+ v0.1.10 (164 problems) through the `evalplus` package, plus the model samples from EvalPlus's v0.1.0 release: 200 samples per problem at temperature 0.8 from six models (`chatgpt`, `phind-code-llama-34b-v2`, `code-llama-34b`, `starcoder`, `codegen-16b`, `mistral-7b`). That's 196,800 samples, about 110 MB of downloads, none of it committed.
+
+**Result, exactly as fixed in advance in `PLAN.md`:**
+
+| analysis | Spearman rho | 95% interval | problems |
+|---|---|---|---|
+| predicted FPR (mutants) vs real FPR (model samples), **primary** | **0.07** | −0.10 to 0.24 | 162 |
+| same, duplicate samples removed | 0.06 | −0.11 to 0.23 | 162 |
+| predicted FPR vs real false-discovery rate | 0.20 | 0.01 to 0.37 | 156 |
+
+**The audit does not predict where real wrong code slips through.** This is a negative result & it's reported as one. I did not go looking for a different metric or a different subset that would produce a correlation.
+
+- 3,929 mutants. 229 pass every test & are treated as equivalent. Of the 3,700 that HumanEval+ rejects, 210 (5.7%) pass the original tests.
+- 123,248 of the 196,800 samples are wrong by HumanEval+. 9,815 of those (8.0%) pass the original tests.
+- The audit flags 37 problems (at least one surviving mutant). 139 problems have real false positives. 59% of the real false positives are in problems the audit called clean.
+- As a yes/no detector of "this problem has real false positives", the audit scores AUC 0.46, slightly worse than a coin.
+
+**Why, from reading the cases:**
+
+- *Missed by the audit:* `filter_integers`, `is_palindrome`, `sum_to_n`, `unique`. All have one-line references with 5 to 10 mutants, all killed. The real errors are different programs, not perturbed ones: `isinstance(x, int)` accepting booleans, an extra `.lower()`, recursion that overflows on large n, `list(set(l))` with no sort.
+- *False alarms:* `numerical_letter_grade` has 22 surviving mutants (shifted grade boundaries) & zero real false positives in 993 wrong samples, because the boundaries are spelled out in the prompt & models copy them.
+
+**Checks on the harness itself** (because a null result from a broken harness would be worthless):
+
+- **Published scores reproduced.** On greedy samples, the pass rate on the original tests matches the EvalPlus paper to the decimal for all four models checked: GPT-4 88.4%, ChatGPT 73.2%, StarCoder 34.1%, CodeGen-16B 32.9%.
+- **HumanEval+ pass rates came out 0 to 4 points above the paper's** (GPT-4 80.5% vs 76.2%). I didn't accept "probably a dataset revision" on trust. `scripts/crosscheck_evalplus.py` runs EvalPlus's own official evaluator on the same 328 greedy samples with the same dataset version: **328 of 328 verdicts identical to mine**, & it also reports 80.5%. So the gap from the 2023 paper comes from the dataset having been revised since, not from my evaluator.
+- **Tests on a hand-made problem** cover all three verdicts, timeouts, crashes & the comparison rules.
+
+**Decisions:**
+
+- **Wrote my own evaluator instead of calling EvalPlus's.** EvalPlus starts a fresh Python process per check, which on macOS costs seconds each. Fine for 164 samples, hopeless for 200,000. Mine starts one process per problem & forks a child per candidate. The comparison rules are copied from EvalPlus (exact match, a small tolerance for floats, any root accepted for `find_zero`).
+- **Samples are cleaned generously.** Code fences are stripped, the prompt is put in front so its imports exist, & trailing lines are dropped until the code parses. Being generous means a sample is only called wrong when its logic is wrong, not its formatting.
+- **Untrusted code is sandboxed three ways:** a forked child per candidate with time limits, dangerous functions switched off (the same idea as HumanEval's `reliability_guard`), & on macOS the system sandbox with no network & no file writes. A test confirmed a candidate that tries to write a file can't.
+- **Only run the extra tests on candidates that pass the original ones.** HumanEval+ includes the original inputs, so failing them already means wrong.
+
+**Problems hit:**
+
+- **The run took 32 minutes,** not the 5 I'd estimated. Wrong samples that loop cost a 1-second limit each, & the machine was shared with two other jobs. Results are cached per problem, so a re-run takes seconds.
+- **EvalPlus's own evaluator failed every check on this Mac** the first time (0% pass rate for GPT-4). It tries to cap memory with `setrlimit`, which macOS refuses. Setting `EVALPLUS_MAX_MEMORY_BYTES=-1`, its own off switch, fixed it. Had I not sanity-checked the cross-check with a known-correct solution, I'd have "found" 300 disagreements that didn't exist.
+- **The first disagreement list only showed one direction** (audit says weak, reality says fine) because of how ties rank. It now reports both directions separately.
