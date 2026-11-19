@@ -1,8 +1,14 @@
 PYTHON ?= python
 
-.PHONY: all test hooks
+.PHONY: all core audit test hooks
 
-all: test
+# Everything that needs no download.
+core: audit
+
+all: core test
+
+audit:
+	$(PYTHON) audit.py
 
 test:
 	$(PYTHON) -m pytest -q

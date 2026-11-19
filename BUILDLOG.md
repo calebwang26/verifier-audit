@@ -78,3 +78,28 @@ What was built in each step, the decisions made & why, & the problems hit along 
 - **Mutants are described by the line they change** (`` `if start <= last[1]:` -> `if start < last[1]:` ``), which makes the hand review readable.
 
 **Problem hit:** one of my own tests was wrong. It claimed `stmt_delete` never removes a `return`, but deleting a whole `if` block legitimately removes the `return` inside it. The engine was right & the test was fixed to say what's actually promised.
+
+## Step 4: equivalent mutants, the audit & the known-answer checks
+
+**Built:** `equivalence.py` (flags likely-equivalent mutants), `audit.py` (runs every mutant against every suite & computes the rates) & three test files. The full audit takes about a minute.
+
+**First real numbers** (share of real bugs each suite passes, averaged over the 12 tasks):
+
+| suite | empty | weak | medium | strong | oracle |
+|---|---|---|---|---|---|
+| false-positive rate | 100% | 33% | 16% | 0% | 0.3% |
+
+444 mutants, of which 19 (4%) were flagged likely equivalent & left out, leaving 425 real bugs.
+
+**Decisions:**
+
+- **Equivalence is checked on 3,000 random inputs plus each task's hand-picked edge inputs,** with a different random seed from the ones the suites use. A mutant is only called "likely equivalent" if it matches the reference on all of them. "Likely" is deliberate: no amount of testing proves two programs are the same.
+- **Each input gets a 1-second alarm in the equivalence check.** A mutant stuck in a loop is recorded as "did not finish" on that input, which counts as different behaviour. Without the alarm every looping mutant would cost the full outer timeout.
+- **The overall rate is the average of the 12 per-task rates,** not one big pooled fraction, so `spiral_order` (83 mutants) doesn't outweigh `top_k_frequent` (23). The pooled figure is saved too.
+- **Two built-in consistency rules** (`audit.consistency_problems`): a mutant failed by a weaker suite must be failed by the stronger one, & a mutant flagged equivalent must pass every suite. Both hold with zero violations.
+
+**Known-answer result:** the empty suite passes 425 of 425 real bugs (100%). The oracle suite passes 1 of 425 (0.2%). Both are where they must be.
+
+**The one mutant that got past the oracle suite, & why it's worth knowing about:** in `lru_cache`, deleting the line that marks a key as recently used on `get` (the classic LRU bug). I checked whether this was an audit fault. It isn't: with my random operation generator the bug only shows on about 0.8% of inputs (24 of 3,000), because it needs a specific sequence (read an old key, then overflow the cache, then read again). The oracle suite's 500 inputs happened to miss it, which has roughly a 2% chance. The equivalence check's 3,000 inputs caught it, & so did the strong suite, which has a test written for exactly this case. I left the generator & seed alone rather than tune them until the number read 0: the honest lesson is that **random testing is weak against bugs that need a particular sequence of steps, & one targeted test beats 500 random ones there.**
+
+**Problem hit:** another wrong expectation in one of my own tests (I'd miscounted how many consistency violations a made-up example should produce). Fixed the test.
