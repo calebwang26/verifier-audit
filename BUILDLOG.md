@@ -320,3 +320,11 @@ So "Merge pull request #N" in this repo's history refers to pull requests in the
 | 5 | CI green on `main`, README runs from a fresh clone | pass (full `make all` from a clone in step 9; `make core` & the tests re-run from a clone of the new repo) |
 | 6 | Caleb reviews the README & approves | approved |
 | 7 | switch to public | done after this pull request merged, then `main` was protected |
+
+### Published & protected (18 November 2026)
+
+- **Before switching:** the checklist was re-run on a fresh clone of the new repo. Clean secret scan over all 50 commits, only the no-reply address, no confidential terms, a 372 KB repo, `make core` & all 137 tests passing, CI green on `main`.
+- **The first GitHub-side merge in the new repo carried the no-reply address,** so the privacy setting is doing its job. That was checked while the repo was still private.
+- **The repo was switched to public.** The `verifier-audit-dev` archive stays private.
+- **`main` is protected:** changes must come through a pull request, both CI checks (`tests` & `gitleaks`) must pass before merging, force-pushes & branch deletion are blocked, & the rules apply to the owner too. This pull request is the first one merged under those rules.
+- **The backup bundle was deleted** once the public repo, the private archive & the local copy were confirmed to hold the same rewritten history.
