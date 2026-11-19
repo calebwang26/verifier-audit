@@ -153,3 +153,22 @@ What was built in each step, the decisions made & why, & the problems hit along 
 - **out-of-process:** the candidate runs alone, gets only inputs & hands back only outputs as JSON. Answers & comparison stay in the parent.
 
 **An honest weakness in my own runner:** the demo shows `run_suite.py` can be fooled by a candidate that writes a fake result line straight to the real stdout & exits. Any secret kept inside the shared process can be found by code running in that process, so this can't be patched from within. It doesn't affect the mutation audit (mutants are small accidental changes, not attacks, & the oracle suite compares strictly), but it's why the demo's third verifier exists & it's listed in the README's limitations.
+
+## Step 6: the hand-checked sample
+
+**Built:** `review/sample.py` (draws 30 mutants with a fixed seed), `review/hand_labels.json` (my verdict & a one-line reason for each), `review/compare.py` & the result, `review/mutant_sample.md`.
+
+**How it was done:** I printed the 30 changes with no audit label beside them, read each against the original code, decided whether any allowed input could behave differently & wrote down why. Those labels were committed first. Only then was the comparison script written & run. The git history shows that order.
+
+**Result: 30 of 30 agree.** All 30 are real bugs by hand & by the audit.
+
+**Why that alone isn't enough:** only 19 of the 444 mutants are flagged equivalent, so a random 30 contains none about a quarter of the time, & this draw contained none. That means the sample tested the audit's "bug" label 30 times & its "equivalent" label zero times. So I also reviewed all 19 flagged mutants. That second review was not blind (I knew they were flagged), which is said plainly in the file. Each verdict is a short argument that can be checked.
+
+**Result of the second review:** all 19 are equivalent on the inputs their task allows. 13 are equivalent on any input. The other 6 are equivalent only because of a promise in the task description:
+
+- `max_subarray_sum` `current < 0` -> `current < 1`: the same for integers, a real bug for fractions.
+- `spiral_order` reading the width from the last row instead of the first: the same for rectangular matrices only.
+- `merge_intervals` re-processing the first interval: the same only if start <= end.
+- `parse_duration` `and` -> `or`: still raises ValueError on every bad input, but with a different message.
+
+**What this taught me:** "equivalent" really means "equivalent on the inputs the generator produces". The audit can't see a bug that only shows on inputs outside that range. That's a limit of the method, not a slip in the code, & it's in the README's limitations.
