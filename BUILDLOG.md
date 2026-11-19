@@ -61,3 +61,20 @@ What was built in each step, the decisions made & why, & the problems hit along 
 - **`lru_cache` is a class, not a function,** so its "input" is a capacity plus a list of operations & its "output" is the list of what each operation returned. Each task's `spec.apply()` hides that difference, so the rest of the audit treats every task the same way.
 
 **Checked:** all twelve references pass all five suites. Passing the oracle suite means each reference agrees with its independently written oracle on 500 random inputs.
+
+## Step 3: the mutation engine
+
+**Built:** `mutate.py` & `tests/test_mutate.py`. The engine parses a solution into a syntax tree (Python's `ast` module), finds every place one of seven operators applies, & writes out one mutant per place. The twelve tasks yield 444 mutants, between 23 & 83 per task.
+
+**Decisions:**
+
+- **Work on the syntax tree, not on text.** Swapping `<` for `<=` with find-&-replace would also hit comments, strings & `<<`. On the tree, a comparison is a comparison.
+- **Only code inside functions is mutated.** Module-level tables (like the Roman numeral values) & docstrings are left alone.
+- **No twin mutants.** Three rules stop two operators producing the same wrong program twice, which would count one bug double:
+  - `stmt_delete` skips `return x`, because deleting it behaves exactly like `return_const`'s `return None`.
+  - `cond_negate` skips a plain `a == b` test, because `cmp_swap` already turns it into `a != b`.
+  - Any mutant whose code is identical to an earlier one is dropped.
+- **`return_const` tries five constants:** `None`, `""`, `[]` & either `True`/`False` (if the function looks like it returns booleans) or `0`/`1`. `0` & `False` behave the same under `==`, so trying both would again count one bug twice.
+- **Mutants are described by the line they change** (`` `if start <= last[1]:` -> `if start < last[1]:` ``), which makes the hand review readable.
+
+**Problem hit:** one of my own tests was wrong. It claimed `stmt_delete` never removes a `return`, but deleting a whole `if` block legitimately removes the `return` inside it. The engine was right & the test was fixed to say what's actually promised.
