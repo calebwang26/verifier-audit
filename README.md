@@ -152,6 +152,8 @@ Checks 1 to 4 show the audit measures what it claims to: whether tests catch sma
 ## 7. How to run
 
 ```bash
+git clone https://github.com/calebwang26/verifier-audit.git
+cd verifier-audit
 conda create -n verifier-audit --override-channels -c conda-forge python=3.11 -y
 conda activate verifier-audit
 pip install -r requirements.txt
