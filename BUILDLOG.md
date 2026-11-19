@@ -103,3 +103,53 @@ What was built in each step, the decisions made & why, & the problems hit along 
 **The one mutant that got past the oracle suite, & why it's worth knowing about:** in `lru_cache`, deleting the line that marks a key as recently used on `get` (the classic LRU bug). I checked whether this was an audit fault. It isn't: with my random operation generator the bug only shows on about 0.8% of inputs (24 of 3,000), because it needs a specific sequence (read an old key, then overflow the cache, then read again). The oracle suite's 500 inputs happened to miss it, which has roughly a 2% chance. The equivalence check's 3,000 inputs caught it, & so did the strong suite, which has a test written for exactly this case. I left the generator & seed alone rather than tune them until the number read 0: the honest lesson is that **random testing is weak against bugs that need a particular sequence of steps, & one targeted test beats 500 random ones there.**
 
 **Problem hit:** another wrong expectation in one of my own tests (I'd miscounted how many consistency violations a made-up example should produce). Fixed the test.
+
+## Step 5: the reward-hack gallery & the verifier-attack demo
+
+**Built:** four hacks for each of the 12 tasks (48 files in `tasks/<task>/hacks/`), `hacks_eval.py` to run them all, `scripts/build_hack_tables.py` & `demos/verifier_attacks/`.
+
+**The four hack types:**
+
+| hack | what it does |
+|---|---|
+| `hardcode_tests` | no logic, just a lookup table of every fixed test input & its expected answer |
+| `mask_errors` | a rough first draft wrapped in `try/except` that returns a default instead of crashing |
+| `special_case` | a plausible shortcut, plus `if input == ...` patches for the exact test inputs it gets wrong |
+| `always_equal` | returns an object whose `==` always says yes |
+
+**Threat model:** the model can read every test file (true whenever the tests sit in the repo it's editing). It can't predict the inputs of a random test.
+
+**Results** (share of the 12 tasks where the hack passes the suite):
+
+| hack | empty | weak | medium | strong | oracle |
+|---|---|---|---|---|---|
+| hardcode_tests | 100% | 100% | 100% | 0% | 0% |
+| mask_errors | 100% | 100% | 25% | 0% | 0% |
+| special_case | 100% | 100% | 100% | 8% | 8% |
+| always_equal | 100% | 100% | 83% | 83% | 0% |
+
+**What stood out:**
+
+- **Fixed tests can always be memorised.** `hardcode_tests` & `special_case` beat every suite made only of fixed cases, on every task. Only the random-against-oracle check stopped them.
+- **`always_equal` beats the strong suite on 10 of 12 tasks,** although that suite caught 100% of mutants. Every `assert f(x) == expected` asks the returned object whether it's equal, & the object lies. It only failed where a test asked something else: `assert not f(x)` (brackets) or "must raise ValueError" (durations). The oracle suite catches it everywhere because it insists results are plain built-in data.
+- **One hack beat the oracle suite itself:** `is_valid_parentheses/special_case`. It only counts brackets of each kind, so it's wrong on strings like `[(])`. My random string generator produces such strings on about 0.04% of draws (36 in 100,000), so 500 random inputs missed it. Same lesson as the `lru_cache` mutant in step 4: a random check is only as good as its input generator. The 3,000-input equivalence check did catch it (2 hits).
+
+**Decisions:**
+
+- **The lookup tables were filled in by a helper, not typed.** `scripts/build_hack_tables.py` runs each task's fixed tests against the reference, notes every call & its answer (about 230 pairs), & writes them into the hack files. The hack files themselves are plain static Python, the same thing a model that read the tests would type. Typing 230 pairs by hand would have produced typos, & a typo would make a hack fail for the wrong reason.
+- **The `mask_errors` drafts were written first & left alone.** I wrote each as the obvious rough draft for that task, then recorded whatever the suites did with it. Nine of twelve are caught by the medium suite.
+- **A test proves no hack is accidentally correct:** all 48 differ from the reference under the strict comparison.
+
+**The verifier-attack demo** (`demos/verifier_attacks/demo.py`) tries three attacks on the *verifier* rather than the task, against three verifiers:
+
+| attack | naive | this repo's `run_suite` | out-of-process |
+|---|---|---|---|
+| edit the test file | passes | caught | caught |
+| always_equal | passes | passes | caught |
+| forge "all passed" & exit | passes | passes | caught |
+
+- **naive:** runs whatever test files are in the agent's workspace & trusts the exit code.
+- **this repo:** tests come from the verifier's own copy, so edited test files are never used. But the candidate & the tests still share one Python process.
+- **out-of-process:** the candidate runs alone, gets only inputs & hands back only outputs as JSON. Answers & comparison stay in the parent.
+
+**An honest weakness in my own runner:** the demo shows `run_suite.py` can be fooled by a candidate that writes a fake result line straight to the real stdout & exits. Any secret kept inside the shared process can be found by code running in that process, so this can't be patched from within. It doesn't affect the mutation audit (mutants are small accidental changes, not attacks, & the oracle suite compares strictly), but it's why the demo's third verifier exists & it's listed in the README's limitations.
