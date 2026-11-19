@@ -20,6 +20,11 @@ jobs:
 
   gitleaks:
     runs-on: ubuntu-latest
+    # The action lists the pull request's commits, which needs read access
+    # to pull requests (not granted by default on a private repo).
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
