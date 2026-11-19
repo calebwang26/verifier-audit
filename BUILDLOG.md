@@ -243,3 +243,43 @@ Both columns rank the suites the same way, & hacks get through at least as often
 - **The README leads its results with what the audit found on the 12 tasks & then states the negative EvalPlus result as the headline,** with the two concrete cases (`filter_integers`, `numerical_letter_grade`) that explain it.
 
 **Problems hit:** none beyond the chart fixes above.
+
+## Step 9: EXPLAIN.md, the fresh-clone run & the pre-publish checklist
+
+**Built:** `EXPLAIN.md` (a file-by-file walkthrough plus an answer to each of the eight "defend it" questions), a note in `PLAN.md` on what changed from the plan, & a rewritten `scripts/merge_pr.sh`.
+
+### The fresh-clone run
+
+Cloned the repo into an empty temp folder & ran `make all`. It finished with exit code 0 in 29 minutes: audit, hacks, demo, hand-check comparison, all downloads, the full EvalPlus evaluation, plots & 137 passing tests.
+
+**It caught a false claim in my README.** I had written that every number reproduces exactly. Comparing the fresh run with the original:
+
+- The 12-task audit, the hack gallery & three of the four plots are identical, to the byte.
+- The EvalPlus numbers differ slightly: primary correlation 0.077 instead of 0.070. 116 of 196,800 sample verdicts (0.06%) changed, 112 of them from "fails the extra tests" in the first run to "passes" in the second, almost all in three problems with very large inputs. No mutant verdict changed.
+
+The likely cause is time limits. The first run shared the machine with two other heavy jobs, so some correct-but-slow samples timed out. I can't fully prove that's the only cause, so the README now says what was observed: both numbers, the size of the difference, & that the conclusion is the same either way. The README's table keeps the first run's numbers because that was the run the analysis was fixed for, rather than switching to whichever looked better.
+
+### Pre-publish checklist
+
+| # | check | result |
+|---|---|---|
+| 1 | `gitleaks detect` over the entire history | **pass:** 0 findings |
+| 2 | only the no-reply email in the history | **FAIL:** see below |
+| 3 | no confidential terms or personal info | **pass:** none in any commit |
+| 4 | no file over 50 MB, small repo | **pass:** largest file is a 77 KB plot |
+| 5 | CI green on `main` & README runs from a fresh clone | **pass** |
+| 6 | Caleb reviews the README & approves | waiting for Caleb |
+| 7 | switch to public | not done; waiting for Caleb |
+
+### The failed check: a personal email in 8 merge commits
+
+`git log --format='%ae' | sort -u` showed two addresses. Every commit I made carries the GitHub no-reply address. But the 8 merge commits created by `gh pr merge` (pull requests 1 to 8) carry the account's personal email. A merge performed on GitHub's side is stamped with the account's primary email unless "Keep my email addresses private" is switched on in GitHub's settings, whatever the local git config says.
+
+**I should have run this check after the first merge, not at the end.** It costs one line & would have limited the problem to one commit.
+
+**What I did:**
+
+- Stopped the merge that was in flight, so there's no ninth.
+- Rewrote `scripts/merge_pr.sh`: it still waits for green CI, but now makes the merge commit locally & pushes it (a normal push, never forced). Pull request 9 was merged this way & its merge commit carries the no-reply address. GitHub still shows the pull request as merged.
+
+**What I did not do:** remove the email from the 8 existing commits. That means rewriting history & force-pushing `main`, which is on the list of things to stop & ask about. The repo is private, so nothing is exposed while it waits. It must be resolved before the repo goes public.

@@ -83,7 +83,7 @@ Mutants are artificial bugs. To see whether the audit says anything about *real*
 | same, duplicate samples removed | 0.06 | −0.11 to 0.23 | 162 |
 | predicted vs share of accepted solutions that are wrong | 0.20 | 0.01 to 0.37 | 156 |
 
-**There is no detectable relationship.** The interval for the primary analysis comfortably includes zero.
+**There is no detectable relationship.** The interval for the primary analysis comfortably includes zero. A second full run from a fresh clone gave 0.08 (−0.09 to 0.24), so the conclusion doesn't depend on the run (see the note on reproducibility under "How to run").
 
 - On 125 problems no mutant survived the original tests. On 109 of those, wrong model-written solutions passed anyway.
 - 59% of all real false positives (5,786 of 9,815) are in problems the audit would have called clean.
@@ -137,6 +137,7 @@ Checks 1 to 4 show the audit measures what it claims to: whether tests catch sma
 - **I wrote the suites knowing they'd be compared.** "Weak", "medium" & "strong" were defined by a fixed rule before any mutant ran, but they're still my judgement of what a typical repo's tests look like.
 - **I also wrote the hacks.** 48 hand-written cheats show what's possible, not how often a model would actually produce each one.
 - **HumanEval+ is a bigger test suite, not a proof of correctness.** Wrong solutions that pass it are counted as correct, so the real false-positive figures are underestimates. Some "wrong" verdicts are disagreements about what an ambiguous prompt meant.
+- **A few EvalPlus verdicts depend on timing.** Slow-but-correct samples can time out under load (0.06% of verdicts differed between two runs). Far too few to change the result, but the figures aren't bit-for-bit repeatable.
 - **The model samples are from 2023-era models** at temperature 0.8. Newer models make different mistakes.
 - **This repo's own runner is not secure against a hostile solution.** The demo shows a candidate can forge a pass, because candidate & tests share a process. This doesn't affect the mutation numbers (mutants aren't attacks), but `run_suite.py` shouldn't be used as-is to grade an adversarial agent.
 - **One operator set, one mutation per mutant.** Mutants that change two things at once, or operators aimed at library calls (`sorted`, `isinstance`), might track real errors better. I didn't test that.
@@ -166,7 +167,11 @@ make all
 | `make report` | plots in `figures/` & numbers in `outputs/results.md` | seconds |
 | `make test` | the test suite | about 1 minute |
 
-Random seeds are fixed, so the numbers above reproduce exactly. Tested on macOS with Python 3.11. Useful single commands:
+Tested on macOS with Python 3.11, including one full run of `make all` from a fresh clone (29 minutes).
+
+**Reproducibility.** Random seeds are fixed. The 12-task audit, the hack gallery & three of the four plots reproduce exactly, to the byte. The EvalPlus numbers move slightly between runs, because a model-written solution that is correct but slow can hit a time limit on a busy machine. Between my two full runs, 116 of 196,800 sample verdicts (0.06%) differed, nearly all in three problems with very large inputs, & no mutant verdict changed. The primary correlation was 0.070 in the first run (the one reported above) & 0.077 in the second.
+
+Useful single commands:
 
 ```bash
 python mutate.py tasks/merge_intervals/solution.py        # list one task's mutants

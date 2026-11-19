@@ -71,3 +71,11 @@ If the correlation is weak or absent, the README says so.
 8. `evalplus`: realism check
 9. `report`: plots, cross-check, README
 10. `docs`: EXPLAIN.md, final BUILDLOG.md
+
+## Afterwards: what changed from this plan
+
+Kept as written so the plan can be compared with what happened.
+
+- **The analysis of the EvalPlus check was run exactly as fixed above.** No inclusion rule, metric or model list was changed after seeing results.
+- **Order of work:** `report` came after `evalplus` rather than before, because one of the plots needs its results. An extra `ci-fix` pull request was needed early on (see `BUILDLOG.md`, step 1b).
+- **Additions not in the plan:** a fourth hack type (`always_equal`), the verifier-attack demo's out-of-process checker, a review of all 19 flagged-equivalent mutants, & a cross-check of the EvalPlus evaluator against EvalPlus's own.
