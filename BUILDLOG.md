@@ -32,3 +32,14 @@ What was built in each step, the decisions made & why, & the problems hit along 
 - **The oracle suite & the equivalence check compare results strictly** (`checks.outcome`): a result only counts if it's plain built-in data. The ordinary suites use plain `==` like a normal developer would. This difference matters later, in the hack gallery.
 
 **Checked:** the reference passes all five suites, a wrong solution fails with an assertion, & an infinite loop is cut off at the timeout.
+
+## Step 1b: a CI mistake, & the fix
+
+**What went wrong:** pull request 1 was merged while its gitleaks check was red. The rule is that a PR merges only when tests & gitleaks both pass. I had chained "wait for CI" & "merge" in one command in a way that threw away the CI result, so the merge went ahead regardless. That was my error.
+
+**Was anything leaked?** No. The check failed before it scanned anything: on a private repo the gitleaks action isn't allowed to list a pull request's commits unless the workflow asks for `pull-requests: read` (error: "Resource not accessible by integration"). A full local scan of the whole history (`gitleaks detect --log-opts="--all"`) found nothing, & the pre-commit hook had scanned every commit as it was made.
+
+**Fixes:**
+
+- `.github/workflows/ci.yml` now grants the gitleaks job `contents: read` & `pull-requests: read`.
+- New `scripts/merge_pr.sh <number>`: waits for the checks & merges only if every one passed. Every later PR is merged through it, so a red check can't be skipped again.
